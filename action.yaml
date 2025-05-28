@@ -28,8 +28,8 @@ runs:
         GH_TOKEN: ${{ inputs.github_token }}
         GH_REPO: ${{ inputs.github_repo }}
       run: |
-        echo "Attempting to translate issue ${ISSUE_NUMBER} in repository ${GH_REPO}..."
-        TRANSLATED_OUTPUT=$(${GITHUB_ACTION_PATH}/translate.sh ${GH_REPO} ${ISSUE_NUMBER})
+        echo "Attempting to translate issue $ISSUE_NUMBER in repository $GH_REPO..."
+        TRANSLATED_OUTPUT=$($GITHUB_ACTION_PATH/translate.sh $GH_REPO $ISSUE_NUMBER)
 
         if [[ "${TRANSLATED_OUTPUT}" == "NO_TRANSLATION_NEEDED" || "${TRANSLATED_OUTPUT}" == Error:* ]]; then
           echo "status=SKIPPED" >> $GITHUB_OUTPUT
