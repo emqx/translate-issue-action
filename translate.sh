@@ -163,8 +163,7 @@ if [ -n "$IMAGE_URLS" ]; then
             continue
         fi
 
-        # Call Gemini and process response
-        IMG_TRANS=$(call_gemini "$IMG_PAYLOAD")
+        IMG_TRANS=$(call_gemini "$IMG_PAYLOAD" || true)
 
         if [[ "$IMG_TRANS" != "NO_CHINESE_TEXT_FOUND" && "$IMG_TRANS" != Error:* && -n "$IMG_TRANS" ]]; then
             log "Image $IMG_COUNT: Translation found."
