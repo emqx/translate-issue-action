@@ -124,23 +124,26 @@ IMG_COUNT=0
 if [ -n "$IMAGE_URLS" ]; then
     log "Found image URLs. Processing..."
     while IFS= read -r URL; do
+        if [ -z "$URL" ]; then
+            log "Warning: Empty URL found in image links. Skipping."
+            continue
+        fi
         # Clean trailing parenthesis if any from URL (sometimes happens with markdown parsing)
-        CLEANED_URL=$(echo "$URL" | sed 's/[)]*$//')
-
-        ((IMG_COUNT++))
+        URL=$(echo "$URL" | sed 's/[)]*$//')
+        IMG_COUNT=$((IMG_COUNT + 1))
         IMG_FILENAME="$TMP_DIR/image_$IMG_COUNT"
-        log "Processing Image $IMG_COUNT: $CLEANED_URL"
+        log "Processing Image $IMG_COUNT: $URL"
 
         # Download image
-        if ! curl -sL --fail -o "$IMG_FILENAME" "$CLEANED_URL"; then
-            log "Warning: Failed to download image $IMG_COUNT ($CLEANED_URL). Skipping."
+        if ! curl -sL --fail -o "$IMG_FILENAME" "$URL"; then
+            log "Warning: Failed to download image $IMG_COUNT ($URL). Skipping."
             continue
         fi
 
         # Get MIME type
         MIME_TYPE=$(file --mime-type -b "$IMG_FILENAME")
         if [[ ! "$MIME_TYPE" == image/* ]]; then
-            log "Warning: Downloaded file for image $IMG_COUNT ($CLEANED_URL) is not an image ($MIME_TYPE). Skipping."
+            log "Warning: Downloaded file for image $IMG_COUNT ($URL) is not an image ($MIME_TYPE). Skipping."
             rm "$IMG_FILENAME" # Clean up non-image file
             continue
         fi
@@ -163,7 +166,7 @@ if [ -n "$IMAGE_URLS" ]; then
             continue
         fi
 
-        IMG_TRANS=$(call_gemini "$IMG_PAYLOAD" || true)
+        IMG_TRANS=$(call_gemini "$IMG_PAYLOAD" || echo '')
 
         if [[ "$IMG_TRANS" != "NO_CHINESE_TEXT_FOUND" && "$IMG_TRANS" != Error:* && -n "$IMG_TRANS" ]]; then
             log "Image $IMG_COUNT: Translation found."
