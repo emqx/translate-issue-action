@@ -15,6 +15,10 @@ inputs:
   github_repo:
     description: 'GitHub repository in the format owner/repo'
     default: '${{ github.repository }}'
+  translate_attachments:
+    description: 'Whether to translate attachments'
+    type: boolean
+    default: false
 
 runs:
   using: "composite"
@@ -27,6 +31,7 @@ runs:
         GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
         GH_TOKEN: ${{ inputs.github_token }}
         GH_REPO: ${{ inputs.github_repo }}
+        TRANSLATE_ATTACHMENTS: ${{ inputs.translate_attachments }}
       run: |
         echo "Attempting to translate issue $ISSUE_NUMBER in repository $GH_REPO..."
         TRANSLATED_OUTPUT=$($GITHUB_ACTION_PATH/translate.sh $GH_REPO $ISSUE_NUMBER)

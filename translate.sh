@@ -91,102 +91,104 @@ if [[ "$TEXT_TRANSLATION" == Error:* ]]; then
     exit 1
 fi
 
-# --- Find & Translate Images ---
-log "Searching for images in the issue body..."
-
-# Define individual regex patterns for GitHub image URLs
-# Pattern 1: URLs from user-images.githubusercontent.com
-# Example: https://user-images.githubusercontent.com/12345/67890.png
-IMG_PAT_USER_IMAGES="https?://user-images\.githubusercontent\.com/[^?[:space:]]+\.(png|jpe?g|gif|bmp|svg|webp)(\?[^[:space:]]*)?"
-
-# Pattern 2: URLs from github.com/user-attachments/assets/ (newer general attachments)
-# Example: https://github.com/user-attachments/assets/uuid-goes-here
-IMG_PAT_USER_ATTACHMENTS="https?://github\.com/user-attachments/assets/[a-f0-9-]+(\?[^[:space:]]*)?"
-
-# Pattern 3: URLs for assets specific to the current repository (e.g., GH_REPO="owner/repo")
-# Example: https://github.com/owner/repo/assets/12345/uuid-goes-here
-IMG_PAT_REPO_ASSETS="https?://github\.com/${GH_REPO}/assets/[0-9]+/[a-fA-F0-9-]+(\?[^[:space:]]*)?"
-
-# Combine all patterns with OR operator for grep
-# Each pattern is an alternative.
-COMBINED_IMAGE_URL_PATTERNS="(${IMG_PAT_USER_IMAGES}|${IMG_PAT_USER_ATTACHMENTS}|${IMG_PAT_REPO_ASSETS})"
-
-# Use grep to find Markdown image links matching any of the defined URL patterns.
-# -o : Only output the matching part of the line.
-# -E : Use extended regular expressions.
-# The sed command then extracts only the URL from the full Markdown image syntax.
-# The || true prevents the script from exiting if grep finds no matches.
-IMAGE_URLS=$(echo "$ISSUE_BODY" | grep -oE "!\[[^]]*\]\((${COMBINED_IMAGE_URL_PATTERNS})\)" | sed -E 's/^!\[[^]]*\]\((.*)\)$/\1/' || true)
-
 SCREENSHOT_TRANSLATIONS=""
-IMG_COUNT=0
-MAX_IMG_SIZE=524288
+if [ "${TRANSLATE_ATTACHMENTS:-false}" = true ]; then
+    # --- Find & Translate Images ---
+    log "Searching for images in the issue body..."
 
-if [ -n "$IMAGE_URLS" ]; then
-    log "Found image URLs. Processing..."
-    while IFS= read -r URL; do
-        if [ -z "$URL" ]; then
-            log "Warning: Empty URL found in image links. Skipping."
-            continue
-        fi
-        # Clean trailing parenthesis if any from URL (sometimes happens with markdown parsing)
-        URL=$(echo "$URL" | sed 's/[)]*$//')
-        IMG_COUNT=$((IMG_COUNT + 1))
-        IMG_FILENAME="$TMP_DIR/image_$IMG_COUNT"
-        log "Processing Image $IMG_COUNT: $URL"
+    # Define individual regex patterns for GitHub image URLs
+    # Pattern 1: URLs from user-images.githubusercontent.com
+    # Example: https://user-images.githubusercontent.com/12345/67890.png
+    IMG_PAT_USER_IMAGES="https?://user-images\.githubusercontent\.com/[^?[:space:]]+\.(png|jpe?g|gif|bmp|svg|webp)(\?[^[:space:]]*)?"
 
-        # Download image
-        if ! curl -sL --fail -o "$IMG_FILENAME" "$URL"; then
-            log "Warning: Failed to download image $IMG_COUNT ($URL). Skipping."
-            continue
-        fi
+    # Pattern 2: URLs from github.com/user-attachments/assets/ (newer general attachments)
+    # Example: https://github.com/user-attachments/assets/uuid-goes-here
+    IMG_PAT_USER_ATTACHMENTS="https?://github\.com/user-attachments/assets/[a-f0-9-]+(\?[^[:space:]]*)?"
 
-        IMG_SIZE=$(wc -c < "$IMG_FILENAME" | tr -d ' ')
+    # Pattern 3: URLs for assets specific to the current repository (e.g., GH_REPO="owner/repo")
+    # Example: https://github.com/owner/repo/assets/12345/uuid-goes-here
+    IMG_PAT_REPO_ASSETS="https?://github\.com/${GH_REPO}/assets/[0-9]+/[a-fA-F0-9-]+(\?[^[:space:]]*)?"
 
-        if [ "$IMG_SIZE" -gt "$MAX_IMG_SIZE" ]; then
-          log "Error: Image file '$IMG_FILENAME' ($IMG_SIZE bytes) exceeds estimated safe limit ($MAX_IMG_SIZE bytes). Skipping."
-          rm "$IMG_FILENAME"
-          continue
-        fi
+    # Combine all patterns with OR operator for grep
+    # Each pattern is an alternative.
+    COMBINED_IMAGE_URL_PATTERNS="(${IMG_PAT_USER_IMAGES}|${IMG_PAT_USER_ATTACHMENTS}|${IMG_PAT_REPO_ASSETS})"
 
-        # Get MIME type
-        MIME_TYPE=$(file --mime-type -b "$IMG_FILENAME")
-        if [[ ! "$MIME_TYPE" == image/* ]]; then
-            log "Warning: Downloaded file for image $IMG_COUNT ($URL) is not an image ($MIME_TYPE). Skipping."
-            rm "$IMG_FILENAME" # Clean up non-image file
-            continue
-        fi
+    # Use grep to find Markdown image links matching any of the defined URL patterns.
+    # -o : Only output the matching part of the line.
+    # -E : Use extended regular expressions.
+    # The sed command then extracts only the URL from the full Markdown image syntax.
+    # The || true prevents the script from exiting if grep finds no matches.
+    IMAGE_URLS=$(echo "$ISSUE_BODY" | grep -oE "!\[[^]]*\]\((${COMBINED_IMAGE_URL_PATTERNS})\)" | sed -E 's/^!\[[^]]*\]\((.*)\)$/\1/' || true)
 
-        # Base64 encode
-        B64_DATA=$(base64 < "$IMG_FILENAME" | tr -d '\n') # Ensure no newlines in base64 data for JSON
+    IMG_COUNT=0
+    MAX_IMG_SIZE=524288
 
-        # Prepare image prompt & payload
-        IMG_PROMPT="Translate any Chinese text in this image to English. If no Chinese text is found, respond *only* with 'NO_CHINESE_TEXT_FOUND'."
-        # Using jq for robust JSON creation
-        IMG_PAYLOAD=$(jq -n \
-                        --arg prompt "$IMG_PROMPT" \
-                        --arg mime "$MIME_TYPE" \
-                        --arg data "$B64_DATA" \
-                        '{ "contents":[ { "parts":[ { "text": $prompt }, { "inline_data": { "mime_type": $mime, "data": $data } } ] } ] }')
+    if [ -n "$IMAGE_URLS" ]; then
+        log "Found image URLs. Processing..."
+        while IFS= read -r URL; do
+            if [ -z "$URL" ]; then
+                log "Warning: Empty URL found in image links. Skipping."
+                continue
+            fi
+            # Clean trailing parenthesis if any from URL (sometimes happens with markdown parsing)
+            URL=$(echo "$URL" | sed 's/[)]*$//')
+            IMG_COUNT=$((IMG_COUNT + 1))
+            IMG_FILENAME="$TMP_DIR/image_$IMG_COUNT"
+            log "Processing Image $IMG_COUNT: $URL"
 
-        if [ -z "$IMG_PAYLOAD" ]; then
-            log "Error: Failed to create JSON payload for image $IMG_COUNT. Skipping."
-            rm "$IMG_FILENAME"
-            continue
-        fi
+            # Download image
+            if ! curl -sL --fail -o "$IMG_FILENAME" "$URL"; then
+                log "Warning: Failed to download image $IMG_COUNT ($URL). Skipping."
+                continue
+            fi
 
-        IMG_TRANS=$(call_gemini "$IMG_PAYLOAD" || echo '')
+            IMG_SIZE=$(wc -c < "$IMG_FILENAME" | tr -d ' ')
 
-        if [[ "$IMG_TRANS" != "NO_CHINESE_TEXT_FOUND" && "$IMG_TRANS" != Error:* && -n "$IMG_TRANS" ]]; then
-            log "Image $IMG_COUNT: Translation found."
-            # Ensure newlines are properly handled when appending
-            SCREENSHOT_TRANSLATIONS+=$'\n\n'"**Screenshot $IMG_COUNT Translation:**"$'\n'"${IMG_TRANS}"
-        else
-            log "Image $IMG_COUNT: No Chinese text found, error during translation, or empty translation ('$IMG_TRANS')."
-        fi
-        rm "$IMG_FILENAME" # Clean up downloaded image
+            if [ "$IMG_SIZE" -gt "$MAX_IMG_SIZE" ]; then
+              log "Error: Image file '$IMG_FILENAME' ($IMG_SIZE bytes) exceeds estimated safe limit ($MAX_IMG_SIZE bytes). Skipping."
+              rm "$IMG_FILENAME"
+              continue
+            fi
 
-    done <<< "$IMAGE_URLS"
+            # Get MIME type
+            MIME_TYPE=$(file --mime-type -b "$IMG_FILENAME")
+            if [[ ! "$MIME_TYPE" == image/* ]]; then
+                log "Warning: Downloaded file for image $IMG_COUNT ($URL) is not an image ($MIME_TYPE). Skipping."
+                rm "$IMG_FILENAME" # Clean up non-image file
+                continue
+            fi
+
+            # Base64 encode
+            B64_DATA=$(base64 < "$IMG_FILENAME" | tr -d '\n') # Ensure no newlines in base64 data for JSON
+
+            # Prepare image prompt & payload
+            IMG_PROMPT="Translate any Chinese text in this image to English. If no Chinese text is found, respond *only* with 'NO_CHINESE_TEXT_FOUND'."
+            # Using jq for robust JSON creation
+            IMG_PAYLOAD=$(jq -n \
+                            --arg prompt "$IMG_PROMPT" \
+                            --arg mime "$MIME_TYPE" \
+                            --arg data "$B64_DATA" \
+                            '{ "contents":[ { "parts":[ { "text": $prompt }, { "inline_data": { "mime_type": $mime, "data": $data } } ] } ] }')
+
+            if [ -z "$IMG_PAYLOAD" ]; then
+                log "Error: Failed to create JSON payload for image $IMG_COUNT. Skipping."
+                rm "$IMG_FILENAME"
+                continue
+            fi
+
+            IMG_TRANS=$(call_gemini "$IMG_PAYLOAD" || echo '')
+
+            if [[ "$IMG_TRANS" != "NO_CHINESE_TEXT_FOUND" && "$IMG_TRANS" != Error:* && -n "$IMG_TRANS" ]]; then
+                log "Image $IMG_COUNT: Translation found."
+                # Ensure newlines are properly handled when appending
+                SCREENSHOT_TRANSLATIONS+=$'\n\n'"**Screenshot $IMG_COUNT Translation:**"$'\n'"${IMG_TRANS}"
+            else
+                log "Image $IMG_COUNT: No Chinese text found, error during translation, or empty translation ('$IMG_TRANS')."
+            fi
+            rm "$IMG_FILENAME" # Clean up downloaded image
+
+        done <<< "$IMAGE_URLS"
+    fi
 fi
 
 # --- Combine & Output ---
