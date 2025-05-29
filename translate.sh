@@ -120,6 +120,7 @@ IMAGE_URLS=$(echo "$ISSUE_BODY" | grep -oE "!\[[^]]*\]\((${COMBINED_IMAGE_URL_PA
 
 SCREENSHOT_TRANSLATIONS=""
 IMG_COUNT=0
+MAX_IMG_SIZE=524288
 
 if [ -n "$IMAGE_URLS" ]; then
     log "Found image URLs. Processing..."
@@ -138,6 +139,14 @@ if [ -n "$IMAGE_URLS" ]; then
         if ! curl -sL --fail -o "$IMG_FILENAME" "$URL"; then
             log "Warning: Failed to download image $IMG_COUNT ($URL). Skipping."
             continue
+        fi
+
+        IMG_SIZE=$(wc -c < "$IMG_FILENAME" | tr -d ' ')
+
+        if [ "$IMG_SIZE" -gt "$MAX_IMG_SIZE" ]; then
+          log "Error: Image file '$IMG_FILENAME' ($IMG_SIZE bytes) exceeds estimated safe limit ($MAX_IMG_SIZE bytes). Skipping."
+          rm "$IMG_FILENAME"
+          continue
         fi
 
         # Get MIME type
