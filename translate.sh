@@ -27,7 +27,7 @@ if ! command -v file &> /dev/null; then log "Error: 'file' not found."; exit 1; 
 if ! command -v base64 &> /dev/null; then log "Error: 'base64' not found."; exit 1; fi
 if [ -z "${GH_TOKEN}" ] && [ "${GITHUB_ACTIONS}" = "true" ]; then log "Error: GH_TOKEN missing in Actions."; exit 1; fi
 
-API_URL="https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}"
+API_URL="https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent"
 TMP_DIR=$(mktemp -d) # Create a temporary directory for images
 
 # --- Cleanup Trap ---
@@ -51,7 +51,7 @@ log "Issue Title: $ISSUE_TITLE"
 call_gemini() {
     local payload="$1"
     local response
-    response=$(curl -s --fail -H 'Content-Type: application/json' -X POST "$API_URL" -d "$payload")
+    response=$(curl -s --fail -H 'Content-Type: application/json' -H "x-goog-api-key: $GEMINI_API_KEY" -X POST "$API_URL" -d "$payload")
     # shellcheck disable=SC2181
     if [ $? -ne 0 ]; then
         log "Error: curl command failed."
