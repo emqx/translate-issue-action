@@ -12,7 +12,7 @@ log() {
 GH_REPO=${1:-}
 ISSUE_NUMBER=${2:-}
 GEMINI_API_KEY="${GEMINI_API_KEY:-}"
-GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-flash-preview-05-20}"
+GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-flash}"
 GH_TOKEN="${GH_TOKEN:-}"
 GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"
 
