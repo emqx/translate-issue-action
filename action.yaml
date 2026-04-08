@@ -1,12 +1,8 @@
 name: 'Translate Github Issue'
-description: 'Translate issues in Chinese into English using Gemini API'
+description: 'Translate issues in Chinese into English using GitHub Models API'
 inputs:
   issue_number:
     description: 'The issue number to translate'
-    required: true
-    type: string
-  gemini_api_key:
-    description: 'Gemini API key for translation'
     required: true
     type: string
   github_token:
@@ -15,6 +11,12 @@ inputs:
   github_repo:
     description: 'GitHub repository in the format owner/repo'
     default: '${{ github.repository }}'
+  model:
+    description: 'Model to use for translation via GitHub Models'
+    default: 'openai/gpt-4o'
+  vision_model:
+    description: 'Vision-capable model for translating image attachments'
+    default: 'gpt-4o'
   translate_attachments:
     description: 'Whether to translate attachments'
     type: boolean
@@ -23,14 +25,21 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Install gh-models extension
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: gh extension install github/gh-models
+
     - name: Call Translation Script
       id: translate
       shell: bash
       env:
         ISSUE_NUMBER: ${{ inputs.issue_number }}
-        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
         GH_TOKEN: ${{ inputs.github_token }}
         GH_REPO: ${{ inputs.github_repo }}
+        MODEL: ${{ inputs.model }}
+        VISION_MODEL: ${{ inputs.vision_model }}
         TRANSLATE_ATTACHMENTS: ${{ inputs.translate_attachments }}
       run: |
         echo "Attempting to translate issue $ISSUE_NUMBER in repository $GH_REPO..."
